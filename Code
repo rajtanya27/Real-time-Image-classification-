@@ -1,0 +1,66 @@
+import torch
+import cv2
+import random
+import time
+
+
+model = torch.hub.load('ultralytics/yolov5', 'yolov5s', pretrained=True)
+model.eval()
+
+
+def rl_agent_action(detections):
+    if len(detections) > 0:
+        top_obj = detections.iloc[0]
+        label = top_obj['name']
+        conf = top_obj['confidence']
+        
+        if conf > 0.6:
+            action = f"Track {label}"
+        elif conf > 0.4:
+            action = f"Observe {label}"
+        else:
+            action = "Ignore"
+    else:
+        action = "Search"
+
+    print(f"RL Agent Decision: {action}")
+    return action
+
+
+def run_webcam():
+    cap = cv2.VideoCapture(0)
+    if not cap.isOpened():
+        print("Error: Could not open webcam.")
+        return
+
+    print("Press 'q' to quit.")
+    while True:
+        ret, frame = cap.read()
+        if not ret:
+            print("Error: Could not read frame.")
+            break
+
+       
+        results = model(frame)
+        detections = results.pandas().xyxy[0]
+
+       
+        action = rl_agent_action(detections)
+
+       
+        annotated_frame = results.render()[0]
+        annotated_frame = annotated_frame.copy() 
+        cv2.putText(annotated_frame, f"Action: {action}", (10, 30),
+                    cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
+
+        # Show frame
+        cv2.imshow('YOLOv5 + RL Agent', annotated_frame)
+
+        if cv2.waitKey(1) & 0xFF == ord('q'):
+            break
+
+    cap.release()
+    cv2.destroyAllWindows()
+
+if __name__ == "__main__":
+    run_webcam()
